@@ -26,8 +26,13 @@ if os.path.exists(FAISS_FILE):
     with open(METADATA_FILE, "rb") as f:
         all_metadata = pickle.load(f)
 else:
-    vector_store = FAISS.from_documents([], embedding_model)
-    all_metadata = []
+    if os.path.exists("faiss_store.pkl"):
+        with open("faiss_store.pkl", "rb") as f:
+            vector_store = pickle.load(f)
+    else:
+        vector_store = None
+
+        all_metadata = []
 
 # Save function
 def _save_faiss():
