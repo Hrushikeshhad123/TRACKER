@@ -1,4 +1,3 @@
-# main.py
 import streamlit as st
 import time
 import re
@@ -8,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from agent import run_habit_agent
 from tools import detect_timer_command, parse_timer_command
-from memory import clear_user_memory
+from memory import clear_user_memory, is_plot_request, plot_memory_graph
 
 # Initialize session state
 if "chat_history" not in st.session_state:
@@ -99,7 +98,7 @@ def extract_gym_data(text):
                 month_num = datetime.strptime(month[:3], "%b").month
                 year = now.year
                 datetime_obj = datetime(year, month_num, day, now.hour, now.minute, now.second)
-        except:
+        except Exception:
             pass
 
     return {"DateTime": datetime_obj, "Duration": duration}
@@ -110,7 +109,9 @@ user_input = st.text_area("Type something like: *'I did gym for 45 minutes yeste
 
 if user_input:
     st.session_state.chat_history.append(("user", user_input))
+    reply = None
 
+    # Timer handling
     if detect_timer_command(user_input):
         parsed = parse_timer_command(user_input)
         if parsed:
@@ -124,28 +125,7 @@ if user_input:
             placeholder.markdown(f"### ✅ Timer complete for: **{task}**")
             st.session_state.chat_history.append(("assistant", f"Timer complete for: {task}"))
 
-    elif "plot graph" in user_input.lower() and "gym" in user_input.lower():
-        if st.session_state.gym_data:
-            df = pd.DataFrame(st.session_state.gym_data)
-            df = df.sort_values("DateTime")
-            st.markdown("### 📈 Gym Progress Chart")
-            fig, ax = plt.subplots()
-            fig.patch.set_facecolor('#121212')
-            ax.set_facecolor('#1e1e1e')
-            ax.plot(df["DateTime"], df["Duration"], marker='o', linestyle='-', color='#81c784')
-            ax.set_xlabel("Date & Time", color='white')
-            ax.set_ylabel("Duration (minutes)", color='white')
-            ax.set_title("Gym Duration Trend", color='white')
-            ax.tick_params(axis='x', colors='white')
-            ax.tick_params(axis='y', colors='white')
-            ax.grid(True, color='#444')
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
-            st.session_state.chat_history.append(("assistant", "Here's your gym session chart!"))
-        else:
-            st.warning("⚠️ No gym data found to plot.")
-            st.session_state.chat_history.append(("assistant", "No gym data found to plot."))
-
+    # Gym data extraction
     elif gym_data := extract_gym_data(user_input):
         st.session_state.gym_data.append(gym_data)
         formatted_time = gym_data['DateTime'].strftime('%B %d, %Y %I:%M %p')
@@ -153,13 +133,53 @@ if user_input:
         st.success(msg)
         st.session_state.chat_history.append(("assistant", msg))
 
+    # Plot request handling
+    elif is_plot_request(user_input):
+        match = re.search(r"plot (?:graph|chart) for (\w+)", user_input.lower())
+        habit_type = match.group(1) if match else "gym"
+        try:
+            img_base64 = plot_memory_graph(user_id="default", habit_type=habit_type)
+            if img_base64:
+                st.markdown(f"### 📊 {habit_type.capitalize()} Progress")
+                st.image(img_base64)
+                st.session_state.chat_history.append(("assistant", f"📊 Here's your {habit_type} graph!"))
+            else:
+                st.warning(f"⚠️ No {habit_type} data available to plot.")
+                st.session_state.chat_history.append(("assistant", f"No {habit_type} data available to plot."))
+        except Exception as e:
+            st.error(f"❌ Error generating plot: {e}")
+            st.session_state.chat_history.append(("assistant", f"Plotting error: {e}"))
+
+    # Default LLM response handling
     else:
         reply = run_habit_agent(user_input, st.session_state.chat_history)
-        st.session_state.chat_history.append(("assistant", reply))
-        st.markdown(f"<div style='padding:10px; background-color:#263238; color:#e0e0e0; border-left:5px solid #42a5f5;'>"
-                    f"<strong>Assistant:</strong> {reply}</div>", unsafe_allow_html=True)
+        if reply == "__PLOT_GYM_GRAPH__":
+            if st.session_state.gym_data:
+                df = pd.DataFrame(st.session_state.gym_data)
+                df = df.sort_values("DateTime")
+                st.markdown("### 📈 Gym Progress Chart")
+                fig, ax = plt.subplots()
+                fig.patch.set_facecolor('#121212')
+                ax.set_facecolor('#1e1e1e')
+                ax.plot(df["DateTime"], df["Duration"], marker='o', linestyle='-', color='#81c784')
+                ax.set_xlabel("Date & Time", color='white')
+                ax.set_ylabel("Duration (minutes)", color='white')
+                ax.set_title("Gym Duration Trend", color='white')
+                ax.tick_params(axis='x', colors='white')
+                ax.tick_params(axis='y', colors='white')
+                ax.grid(True, color='#444')
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+                st.session_state.chat_history.append(("assistant", "📈 Here's your gym session chart!"))
+            else:
+                st.warning("⚠️ No gym data found to plot.")
+                st.session_state.chat_history.append(("assistant", "No gym data found to plot."))
+        else:
+            st.session_state.chat_history.append(("assistant", reply))
+            st.markdown(f"<div style='padding:10px; background-color:#263238; color:#e0e0e0; border-left:5px solid #42a5f5;'>"
+                        f"<strong>Assistant:</strong> {reply}</div>", unsafe_allow_html=True)
 
-# Chat history
+# Chat history display
 st.markdown("<hr>", unsafe_allow_html=True)
 st.markdown("### 🧾 Chat History")
 for role, msg in st.session_state.chat_history:
@@ -170,7 +190,7 @@ for role, msg in st.session_state.chat_history:
         </div>
     """, unsafe_allow_html=True)
 
-# Show logs
+# Show gym logs table
 if st.session_state.gym_data:
     st.markdown("---")
     st.markdown("### 🗓️ Logged Gym Sessions")
