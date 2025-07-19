@@ -41,7 +41,8 @@ chain = prompt | llm
 
 def run_habit_agent(user_input, chat_history, user_id="default"):
     latest_user_msg = chat_history[-1][1]
-    save_message("user", latest_user_msg, user_id=user_id)
+    save_message(user_id, "user", latest_user_msg)
+
 
     tool_response = None
     if detect_gym_trigger(user_input):
@@ -53,10 +54,11 @@ def run_habit_agent(user_input, chat_history, user_id="default"):
 
     # Use last few messages to build better memory context
     recent_history_text = " ".join(msg for _, msg in chat_history[-3:])
-    memory_context = get_contextual_memory(recent_history_text, user_id=user_id, k=8)
+    memory_context = get_contextual_memory(user_id)
+
 
     memory_as_messages = []
-    for line in memory_context.split("\n"):
+    for line in [msg["content"] for msg in memory_context if "content" in msg]:
         if line.startswith("user:"):
             memory_as_messages.append(HumanMessage(content=line[5:].strip()))
         elif line.startswith("assistant:"):
@@ -70,7 +72,8 @@ def run_habit_agent(user_input, chat_history, user_id="default"):
         "context": memory_context
     })
 
-    save_message("assistant", response.content, user_id=user_id)
+    save_message(user_id, "assistant", response.content)  # ✅ Correct
+
 
     if tool_response:
         return f"{tool_response}\n\nAssistant: {response.content}"
