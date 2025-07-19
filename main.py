@@ -18,40 +18,97 @@ if "gym_data" not in st.session_state:
 # Page config
 st.set_page_config(page_title="🏋️‍♀️ Habit Tracker Assistant", layout="centered")
 
-# Dark mode custom CSS
+# Custom CSS for modern dark mode UI
 st.markdown("""
     <style>
-    body {
-        background-color: #121212;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+    html, body, .stApp {
+        background-color: #0f1117;
         color: #e0e0e0;
+        font-family: 'Inter', sans-serif;
     }
-    .stApp {
-        background-color: #121212;
-        color: #e0e0e0;
+
+    h1, h2, h3, h4 {
+        color: #66bb6a !important;
+        font-weight: 600;
     }
+
     .stTextArea textarea {
-        background-color: #1e1e1e;
-        color: white;
+        background-color: #1e1e2e;
+        color: #f0f0f0;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 10px;
     }
-    .stButton button {
-        background-color: #2e7d32;
+
+    .stButton>button {
+        background: linear-gradient(to right, #43cea2, #185a9d);
         color: white;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: bold;
+        transition: background 0.3s ease;
     }
+    .stButton>button:hover {
+        background: linear-gradient(to right, #66bb6a, #1de9b6);
+    }
+
     .stDataFrame {
-        background-color: #1e1e1e;
+        background-color: #1e1e2e;
         color: white;
+        border-radius: 10px;
+        overflow: hidden;
     }
+
     .element-container:has(.stButton) {
         margin-bottom: 20px;
     }
+
     hr {
-        border-color: #444;
+        border: none;
+        height: 1px;
+        background-color: #444;
+        margin: 20px 0;
+    }
+
+    .chat-bubble {
+        padding: 12px;
+        border-radius: 12px;
+        margin: 6px 0;
+        line-height: 1.5;
+    }
+
+    .user-msg {
+        background-color: #2d2d3a;
+        border-left: 5px solid #64b5f6;
+    }
+
+    .assistant-msg {
+        background-color: #1f2c2c;
+        border-left: 5px solid #81c784;
+    }
+
+    .chat-container {
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Header
-st.markdown("<h1 style='text-align: center; color: #66bb6a;'>🏋️‍♀️ Habit Tracker Assistant</h1>", unsafe_allow_html=True)
+# Fancy gradient header
+st.markdown("""
+<h1 style='text-align: center;
+           background: linear-gradient(to right, #43cea2, #185a9d);
+           -webkit-background-clip: text;
+           -webkit-text-fill-color: transparent;
+           font-size: 2.8em;
+           font-weight: 700;
+           margin-top: 0;
+           margin-bottom: 0.5em;'>🏋️‍♀️ Habit Tracker Assistant</h1>
+""", unsafe_allow_html=True)
+
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # Clear memory
@@ -111,7 +168,7 @@ if user_input:
     st.session_state.chat_history.append(("user", user_input))
     reply = None
 
-    # Timer handling
+    # Timer
     if detect_timer_command(user_input):
         parsed = parse_timer_command(user_input)
         if parsed:
@@ -125,39 +182,22 @@ if user_input:
             placeholder.markdown(f"### ✅ Timer complete for: **{task}**")
             st.session_state.chat_history.append(("assistant", f"Timer complete for: {task}"))
 
-    # Gym data extraction
-    elif gym_data := extract_gym_data(user_input):
-        st.session_state.gym_data.append(gym_data)
-        formatted_time = gym_data['DateTime'].strftime('%B %d, %Y %I:%M %p')
-        msg = f"💪 Logged your gym session: {gym_data['Duration']} minutes on {formatted_time}"
-        st.success(msg)
-        st.session_state.chat_history.append(("assistant", msg))
-
-    # Plot request handling
-    elif is_plot_request(user_input):
-        match = re.search(r"plot (?:graph|chart) for (\w+)", user_input.lower())
-        habit_type = match.group(1) if match else "gym"
-        try:
-            img_base64 = plot_memory_graph(user_id="default", habit_type=habit_type)
-            if img_base64:
-                st.markdown(f"### 📊 {habit_type.capitalize()} Progress")
-                st.image(img_base64)
-                st.session_state.chat_history.append(("assistant", f"📊 Here's your {habit_type} graph!"))
-            else:
-                st.warning(f"⚠️ No {habit_type} data available to plot.")
-                st.session_state.chat_history.append(("assistant", f"No {habit_type} data available to plot."))
-        except Exception as e:
-            st.error(f"❌ Error generating plot: {e}")
-            st.session_state.chat_history.append(("assistant", f"Plotting error: {e}"))
-
-    # Default LLM response handling
+    # Gym entry
     else:
-        reply = run_habit_agent(user_input, st.session_state.chat_history)
-        if reply == "__PLOT_GYM_GRAPH__":
+        gym_data = extract_gym_data(user_input)
+        if gym_data:
+            st.session_state.gym_data.append(gym_data)
+            formatted_time = gym_data['DateTime'].strftime('%B %d, %Y %I:%M %p')
+            msg = f"💪 Logged your gym session: {gym_data['Duration']} minutes on {formatted_time}"
+            st.success(msg)
+            st.session_state.chat_history.append(("assistant", msg))
+
+        # Plot request (use session data instead of external memory)
+        elif is_plot_request(user_input):
             if st.session_state.gym_data:
                 df = pd.DataFrame(st.session_state.gym_data)
                 df = df.sort_values("DateTime")
-                st.markdown("### 📈 Gym Progress Chart")
+                st.markdown("### 📊 Gym Progress Chart")
                 fig, ax = plt.subplots()
                 fig.patch.set_facecolor('#121212')
                 ax.set_facecolor('#1e1e1e')
@@ -165,30 +205,56 @@ if user_input:
                 ax.set_xlabel("Date & Time", color='white')
                 ax.set_ylabel("Duration (minutes)", color='white')
                 ax.set_title("Gym Duration Trend", color='white')
-                ax.tick_params(axis='x', colors='white')
+                ax.tick_params(axis='x', colors='white', rotation=45)
                 ax.tick_params(axis='y', colors='white')
                 ax.grid(True, color='#444')
-                plt.xticks(rotation=45)
                 st.pyplot(fig)
                 st.session_state.chat_history.append(("assistant", "📈 Here's your gym session chart!"))
             else:
-                st.warning("⚠️ No gym data found to plot.")
-                st.session_state.chat_history.append(("assistant", "No gym data found to plot."))
+                st.warning("⚠️ No gym data available to plot.")
+                st.session_state.chat_history.append(("assistant", "No gym data available to plot."))
+
+        # Default agent response
         else:
-            st.session_state.chat_history.append(("assistant", reply))
-            st.markdown(f"<div style='padding:10px; background-color:#263238; color:#e0e0e0; border-left:5px solid #42a5f5;'>"
-                        f"<strong>Assistant:</strong> {reply}</div>", unsafe_allow_html=True)
+            reply = run_habit_agent(user_input, st.session_state.chat_history)
+            if reply == "__PLOT_GYM_GRAPH__":
+                if st.session_state.gym_data:
+                    df = pd.DataFrame(st.session_state.gym_data)
+                    df = df.sort_values("DateTime")
+                    st.markdown("### 📈 Gym Progress Chart")
+                    fig, ax = plt.subplots()
+                    fig.patch.set_facecolor('#121212')
+                    ax.set_facecolor('#1e1e1e')
+                    ax.plot(df["DateTime"], df["Duration"], marker='o', linestyle='-', color='#81c784')
+                    ax.set_xlabel("Date & Time", color='white')
+                    ax.set_ylabel("Duration (minutes)", color='white')
+                    ax.set_title("Gym Duration Trend", color='white')
+                    ax.tick_params(axis='x', colors='white', rotation=45)
+                    ax.tick_params(axis='y', colors='white')
+                    ax.grid(True, color='#444')
+                    st.pyplot(fig)
+                    st.session_state.chat_history.append(("assistant", "📈 Here's your gym session chart!"))
+                else:
+                    st.warning("⚠️ No gym data found to plot.")
+                    st.session_state.chat_history.append(("assistant", "No gym data found to plot."))
+            else:
+                st.session_state.chat_history.append(("assistant", reply))
+                st.markdown(f"<div class='chat-bubble assistant-msg'><strong>Assistant:</strong> {reply}</div>", unsafe_allow_html=True)
 
 # Chat history display
 st.markdown("<hr>", unsafe_allow_html=True)
 st.markdown("### 🧾 Chat History")
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
 for role, msg in st.session_state.chat_history:
-    color = "#2c2c2c" if role == "user" else "#1f1f1f"
+    css_class = "user-msg" if role == "user" else "assistant-msg"
     st.markdown(f"""
-        <div style="background-color: {color}; padding: 10px; border-radius: 8px; margin-bottom: 5px; color: #e0e0e0;">
-        <strong>{role.capitalize()}:</strong> {msg}
+        <div class="chat-bubble {css_class}">
+            <strong>{role.capitalize()}:</strong> {msg}
         </div>
     """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Show gym logs table
 if st.session_state.gym_data:
