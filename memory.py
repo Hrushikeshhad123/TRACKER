@@ -41,16 +41,12 @@ def _save_faiss():
         pickle.dump(all_metadata, f)
 
 # Save a message into memory
-def save_message(role, content, user_id="default", category="general"):
-    doc = Document(page_content=content, metadata={
-        "role": role,
-        "user": user_id,
-        "category": category,
-        "timestamp": datetime.utcnow().isoformat()
-    })
+from langchain.schema import Document
+
+def save_message(role, content, user_id="default"):
+    doc = Document(page_content=content, metadata={"role": role, "user_id": user_id})
     vector_store.add_documents([doc])
-    all_metadata.append(doc.metadata)
-    _save_faiss()
+
 
 # Get today's log of messages
 def get_today_log(user_id="default", category=None):
