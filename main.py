@@ -4,17 +4,19 @@ import re
 from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+import base64
 
 from agent import run_habit_agent
 from tools import detect_timer_command, parse_timer_command
-from memory import clear_user_memory, is_plot_request, plot_memory_graph
+from memory import clear_user_memory, is_plot_request
 
-# Initialize session state
+# ---------- Session Initialization ----------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "gym_data" not in st.session_state:
     st.session_state.gym_data = []
-# --- Simple Auth ---
+
+# ---------- Authentication ----------
 def login():
     st.markdown("## 🔐 Login Required")
     with st.form("login_form", clear_on_submit=False):
@@ -30,15 +32,14 @@ def login():
             else:
                 st.error("❌ Invalid username or password.")
 
-# --- Check Authentication ---
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     login()
-    st.stop()  # Stop script if not authenticated
+    st.stop()
 
-# Page config
+# ---------- Page Configuration ----------
 st.set_page_config(page_title="🏋️‍♀️ Habit Tracker Assistant", layout="centered")
 
-# Custom CSS for modern dark mode UI
+# ---------- Custom Styles ----------
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
@@ -51,25 +52,29 @@ st.markdown("""
 
     h1, h2, h3, h4 {
         color: #66bb6a !important;
-        font-weight: 600;
+        font-weight: 700;
     }
 
-    .stTextArea textarea {
+    .stTextArea textarea, .stTextInput input {
         background-color: #1e1e2e;
         color: #f0f0f0;
-        border: 1px solid #333;
-        border-radius: 8px;
-        padding: 10px;
+        border: 1px solid #444;
+        border-radius: 10px;
+        padding: 12px;
     }
 
     .stButton>button {
         background: linear-gradient(to right, #43cea2, #185a9d);
         color: white;
+        border: none;
         border-radius: 8px;
-        padding: 8px 16px;
+        padding: 10px 20px;
         font-weight: bold;
+        font-size: 15px;
+        cursor: pointer;
         transition: background 0.3s ease;
     }
+
     .stButton>button:hover {
         background: linear-gradient(to right, #66bb6a, #1de9b6);
     }
@@ -81,22 +86,22 @@ st.markdown("""
         overflow: hidden;
     }
 
-    .element-container:has(.stButton) {
+    .chat-container {
+        max-height: 400px;
+        overflow-y: auto;
         margin-bottom: 20px;
-    }
-
-    hr {
-        border: none;
-        height: 1px;
-        background-color: #444;
-        margin: 20px 0;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 10px;
+        background-color: #1e1e2e;
     }
 
     .chat-bubble {
-        padding: 12px;
-        border-radius: 12px;
-        margin: 6px 0;
-        line-height: 1.5;
+        padding: 14px;
+        border-radius: 10px;
+        margin: 10px 0;
+        line-height: 1.6;
+        font-size: 15px;
     }
 
     .user-msg {
@@ -109,22 +114,31 @@ st.markdown("""
         border-left: 5px solid #81c784;
     }
 
-    .chat-container {
-        max-height: 400px;
-        overflow-y: auto;
-        margin-bottom: 20px;
+    .stExpander {
+        background-color: #1e1e2e !important;
+        border: 1px solid #444 !important;
+    }
+
+    .stExpanderHeader {
+        color: #e0e0e0 !important;
+    }
+
+    hr {
+        border: none;
+        height: 1px;
+        background-color: #444;
+        margin: 20px 0;
     }
     </style>
 """, unsafe_allow_html=True)
-import base64
 
+# ---------- Header with Image ----------
 def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         encoded = base64.b64encode(img_file.read()).decode()
     return f"data:image/png;base64,{encoded}"
 
-# Fancy gradient header
-image_data_url = get_base64_image("unnamed.png")
+image_data_url = get_base64_image("C:/Users/ASUS/Music/New folder/unnamed.png")
 
 st.markdown(f"""
 <div style='text-align: center;'>
@@ -139,11 +153,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-
-
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# Clear memory
+# ---------- Clear Data ----------
 with st.expander("🧹 Clear Data & Memory", expanded=False):
     if st.button("Clear All", use_container_width=True):
         clear_user_memory(user_id="default")
@@ -151,7 +163,7 @@ with st.expander("🧹 Clear Data & Memory", expanded=False):
         st.session_state.gym_data.clear()
         st.success("✅ Memory and logs cleared.")
 
-# Extract gym session info
+# ---------- Gym Data Extractor ----------
 def extract_gym_data(text):
     text = text.lower()
     gym_keywords = ["gym", "workout", "bench press", "deadlift"]
@@ -192,15 +204,22 @@ def extract_gym_data(text):
 
     return {"DateTime": datetime_obj, "Duration": duration}
 
-# Input UI
+# ---------- Input Section with Form ----------
 st.markdown("### 💬 Talk to Your Habit Assistant")
-user_input = st.text_area("Type something like: *'I did gym for 45 minutes yesterday'*", key="input")
+
+user_input = st.text_input("Type something like: *'I did gym for 45 minutes yesterday'*", key="input_area")
 
 if user_input:
+    submitted = True
+    st.session_state.input_area = ""  # Clear input manually
+else:
+    submitted = False
+
+
+if submitted and user_input:
     st.session_state.chat_history.append(("user", user_input))
     reply = None
 
-    # Timer
     if detect_timer_command(user_input):
         parsed = parse_timer_command(user_input)
         if parsed:
@@ -214,7 +233,6 @@ if user_input:
             placeholder.markdown(f"### ✅ Timer complete for: **{task}**")
             st.session_state.chat_history.append(("assistant", f"Timer complete for: {task}"))
 
-    # Gym entry
     else:
         gym_data = extract_gym_data(user_input)
         if gym_data:
@@ -223,12 +241,9 @@ if user_input:
             msg = f"💪 Logged your gym session: {gym_data['Duration']} minutes on {formatted_time}"
             st.success(msg)
             st.session_state.chat_history.append(("assistant", msg))
-
-        # Plot request (use session data instead of external memory)
         elif is_plot_request(user_input):
             if st.session_state.gym_data:
-                df = pd.DataFrame(st.session_state.gym_data)
-                df = df.sort_values("DateTime")
+                df = pd.DataFrame(st.session_state.gym_data).sort_values("DateTime")
                 st.markdown("### 📊 Gym Progress Chart")
                 fig, ax = plt.subplots()
                 fig.patch.set_facecolor('#121212')
@@ -245,14 +260,11 @@ if user_input:
             else:
                 st.warning("⚠️ No gym data available to plot.")
                 st.session_state.chat_history.append(("assistant", "No gym data available to plot."))
-
-        # Default agent response
         else:
             reply = run_habit_agent(user_input, st.session_state.chat_history)
             if reply == "__PLOT_GYM_GRAPH__":
                 if st.session_state.gym_data:
-                    df = pd.DataFrame(st.session_state.gym_data)
-                    df = df.sort_values("DateTime")
+                    df = pd.DataFrame(st.session_state.gym_data).sort_values("DateTime")
                     st.markdown("### 📈 Gym Progress Chart")
                     fig, ax = plt.subplots()
                     fig.patch.set_facecolor('#121212')
@@ -273,7 +285,7 @@ if user_input:
                 st.session_state.chat_history.append(("assistant", reply))
                 st.markdown(f"<div class='chat-bubble assistant-msg'><strong>Assistant:</strong> {reply}</div>", unsafe_allow_html=True)
 
-# Chat history display
+# ---------- Chat History ----------
 st.markdown("<hr>", unsafe_allow_html=True)
 st.markdown("### 🧾 Chat History")
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
@@ -288,10 +300,14 @@ for role, msg in st.session_state.chat_history:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Show gym logs table
+# ---------- Show Logged Gym Sessions ----------
 if st.session_state.gym_data:
     st.markdown("---")
     st.markdown("### 🗓️ Logged Gym Sessions")
     df = pd.DataFrame(st.session_state.gym_data)
     df["DateTime"] = df["DateTime"].apply(lambda dt: dt.strftime('%Y-%m-%d %I:%M %p'))
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df.style.set_properties(**{
+        'background-color': '#1e1e2e',
+        'color': 'white',
+        'border-color': 'white'
+    }), use_container_width=True)
