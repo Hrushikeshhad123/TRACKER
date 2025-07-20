@@ -116,18 +116,30 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+import base64
+
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+    return f"data:image/png;base64,{encoded}"
 
 # Fancy gradient header
-st.markdown("""
-<h1 style='text-align: center;
-           background: linear-gradient(to right, #43cea2, #185a9d);
-           -webkit-background-clip: text;
-           -webkit-text-fill-color: transparent;
-           font-size: 2.8em;
-           font-weight: 700;
-           margin-top: 0;
-           margin-bottom: 0.5em;'>🏋️‍♀️ Habit Tracker Assistant</h1>
+image_data_url = get_base64_image("unnamed.png")
+
+st.markdown(f"""
+<div style='text-align: center;'>
+    <img src='{image_data_url}' style='width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px;' />
+    <h1 style='
+        background: linear-gradient(to right, #43cea2, #185a9d);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.8em;
+        font-weight: 700;
+        margin: 0;'>Habit Tracker Assistant</h1>
+</div>
 """, unsafe_allow_html=True)
+
+
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
