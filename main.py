@@ -14,6 +14,26 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "gym_data" not in st.session_state:
     st.session_state.gym_data = []
+# --- Simple Auth ---
+def login():
+    st.markdown("## 🔐 Login Required")
+    with st.form("login_form", clear_on_submit=False):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
+
+        if submitted:
+            if username.lower().strip() == "hrushikesh mama" and password == "gharjanahai":
+                st.session_state["authenticated"] = True
+                st.success("✅ Login successful!")
+                st.rerun()
+            else:
+                st.error("❌ Invalid username or password.")
+
+# --- Check Authentication ---
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    login()
+    st.stop()  # Stop script if not authenticated
 
 # Page config
 st.set_page_config(page_title="🏋️‍♀️ Habit Tracker Assistant", layout="centered")
