@@ -138,7 +138,7 @@ def get_base64_image(image_path):
         encoded = base64.b64encode(img_file.read()).decode()
     return f"data:image/png;base64,{encoded}"
 
-image_data_url = get_base64_image("C:/Users/ASUS/Music/New folder/unnamed.png")
+image_data_url = get_base64_image("unnamed.png")
 
 st.markdown(f"""
 <div style='text-align: center;'>
