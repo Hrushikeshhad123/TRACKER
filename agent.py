@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
-
+from tools import summarize_food_logs  # Add this import at the top
 from memory import save_message, get_contextual_memory
 from tools import (
     detect_gym_trigger,
@@ -34,20 +34,29 @@ llm = ChatGroq(
 prompt = ChatPromptTemplate.from_messages([
     ("system", """You are a Smart Habit Tracker Assistant.
 
-Your job is to help users track and reflect on their gym and food habits, and provide feedback, motivation, and stats based on their logs.
+Your role is to help users track and reflect on their gym workouts and food habits. Offer personalized feedback, motivation, insights, and statistics based on their logs.
 
-Behavior rules:
-1. Always be warm and encouraging.
-2. Track gym workouts and food logs from natural messages.
-3. Visualize user trends (workouts, meals) when asked.
-4. Suggest recipes or calories using your tools if needed.
-5. Use past memory context to tailor your answers.
+### Behavior Guidelines
+- Always respond in a friendly, supportive tone.
+- Summarize gym and food data if provided. Highlight:
+  - Frequency, consistency, intensity (for gym)
+  - Balance, diversity, excess/deficiency (for food)
+- Suggest improvements or healthy alternatives where necessary.
+- Generate visualizations when asked (e.g., calories/week, protein trends).
+- Warn about imbalances (e.g., too many carbs, no protein).
+- Use memory context to personalize insights (e.g., “This week was more consistent than last week”).
+- Offer code examples when asked for feature-building help (e.g., “plot my weekly protein intake”).
+
+### Output Expectations
+- Use bullet points or markdown tables for summaries when helpful.
+- Keep recommendations realistic and actionable.
+- When unsure, ask clarifying questions.
+
 """),
     MessagesPlaceholder(variable_name="chat_history"),
-    ("system", "Here is relevant past memory:\n{context}"),
+    ("system", "Relevant past memory:\n{context}"),
     ("human", "{input}")
 ])
-
 chain = prompt | llm
 
 
@@ -89,6 +98,7 @@ def run_habit_agent(user_input, chat_history, user_id="default"):
             tool_response = response
 
     # Prepare memory + conversation history
+        # Prepare memory + conversation history
     memory_context = get_contextual_memory(user_id)
 
     memory_as_messages = []
@@ -99,6 +109,12 @@ def run_habit_agent(user_input, chat_history, user_id="default"):
             memory_as_messages.append(AIMessage(content=line[9:].strip()))
 
     full_history = memory_as_messages + [HumanMessage(content=user_input)]
+
+    # Auto-analyze if user query contains food analysis keywords
+    if "analyze food" in user_input.lower() or "diet analysis" in user_input.lower():
+        food_summary = summarize_food_logs()
+        user_input += f"\n\nHere is the food data summary for your analysis:\n{food_summary}"
+
 
     # Run main LLM reasoning
     response = chain.invoke({
