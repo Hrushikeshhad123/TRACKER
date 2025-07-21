@@ -245,3 +245,42 @@ if __name__ == "__main__":
             break
         else:
             print(handle_recipe_query(user_input))
+# tools.py
+
+def summarize_food_logs():
+    if not food_log:
+        return "No food logs available for analysis."
+
+    summary = {
+        "Breakfast": 0,
+        "Lunch": 0,
+        "Dinner": 0,
+        "Snack/Other": 0,
+        "Sample Entries": [],
+    }
+
+    for entry in food_log:
+        note = entry["note"].lower()
+        if any(w in note for w in ["breakfast", "morning"]):
+            summary["Breakfast"] += 1
+        elif any(w in note for w in ["lunch", "afternoon"]):
+            summary["Lunch"] += 1
+        elif any(w in note for w in ["dinner", "night", "evening"]):
+            summary["Dinner"] += 1
+        else:
+            summary["Snack/Other"] += 1
+
+        if len(summary["Sample Entries"]) < 5:
+            summary["Sample Entries"].append(entry["note"])
+
+    summary_text = f"""
+🍽️ Food Log Summary:
+- Breakfasts: {summary['Breakfast']}
+- Lunches: {summary['Lunch']}
+- Dinners: {summary['Dinner']}
+- Snacks/Others: {summary['Snack/Other']}
+
+Recent Sample Entries:
+{chr(10).join('• ' + s for s in summary['Sample Entries'])}
+"""
+    return summary_text
