@@ -257,3 +257,14 @@ if st.session_state.gym_data:
         'color': 'white',
         'border-color': 'white'
     }), use_container_width=True)
+def plot_food_graph(food_df):
+
+    # Example: plot total calories per day
+    daily_calories = food_df.groupby("date")["calories"].sum()
+
+    plt.figure(figsize=(10, 4))
+    daily_calories.plot(kind="bar", color="orange")
+    plt.title("Daily Calorie Intake")
+    plt.xlabel("Date")
+    plt.ylabel("Calories")
+    st.pyplot(plt)
