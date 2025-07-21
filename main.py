@@ -30,7 +30,7 @@ def login():
         submitted = st.form_submit_button("Login")
 
         if submitted:
-            if username.lower().strip() == "hrushikesh mama" and password == "gharjanahai":
+            if username.lower().strip() == "hrushikesh mama" and password == "mamamami":
                 st.session_state["authenticated"] = True
                 st.success("✅ Login successful!")
                 st.rerun()
@@ -91,7 +91,7 @@ def get_base64_image(image_path):
         encoded = base64.b64encode(img_file.read()).decode()
     return f"data:image/png;base64,{encoded}"
 
-image_data_url = get_base64_image("unnamed.png")
+image_data_url = get_base64_image("C:/Users/ASUS/Music/New folder/unnamed.png")
 
 st.markdown(f"""
 <div class='container' style='text-align: center;'>
