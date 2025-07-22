@@ -181,7 +181,48 @@ def plot_memory_graph(user_id="default"):
 
 # ---------- Plot Trigger Detector ----------
 
-def is_plot_request(prompt):
-    keywords = ["graph", "plot", "chart", "visualize", "show progress"]
-    prompt = prompt.lower()
-    return any(kw in prompt for kw in keywords)
+def is_plot_request(text):
+    keywords = ["plot", "graph", "chart", "visualize", "show", "display"]
+    return any(word in text.lower() for word in keywords)
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+
+class SemanticMemory:
+    def __init__(self, index_path="data/faiss.index", model_name="all-MiniLM-L6-v2"):
+        self.model = SentenceTransformer(model_name)
+        self.index_path = index_path
+        self.dimension = 384  # for MiniLM
+        self.index = faiss.IndexFlatL2(self.dimension)
+        self.metadata = []  # Stores [ (user_id, original_text) ]
+
+        if os.path.exists(index_path):
+            self.load_index()
+
+    def load_index(self):
+        self.index = faiss.read_index(self.index_path)
+        with open(self.index_path + ".meta", "r") as f:
+            self.metadata = json.load(f)
+
+    def save_index(self):
+        faiss.write_index(self.index, self.index_path)
+        with open(self.index_path + ".meta", "w") as f:
+            json.dump(self.metadata, f)
+
+    def add_entry(self, user_id, text):
+        embedding = self.model.encode([text])
+        self.index.add(np.array(embedding).astype("float32"))
+        self.metadata.append((user_id, text))
+        self.save_index()
+
+    def search(self, query, user_id=None, top_k=5):
+        embedding = self.model.encode([query])
+        D, I = self.index.search(np.array(embedding).astype("float32"), top_k)
+        results = []
+        for i in I[0]:
+            if i < len(self.metadata):
+                uid, text = self.metadata[i]
+                if user_id is None or uid == user_id:
+                    results.append(text)
+        return results
+
