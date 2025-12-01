@@ -91,7 +91,7 @@ def get_base64_image(image_path):
         encoded = base64.b64encode(img_file.read()).decode()
     return f"data:image/png;base64,{encoded}"
 
-image_data_url = get_base64_image("healthy-eating-ingredients-1296x728-header.jpg")
+image_data_url = get_base64_image("png-clipart-healthy-diet-lifestyle-eating-health-food-radish-natural-foods-child.png")
 
 st.markdown(f"""
 <div class='container' style='text-align: center;'>
