@@ -30,7 +30,7 @@ GROQ_API_KEY="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"
 # ✅ Updated model + correct argument name
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
-    model="llama3-70b-specdec",  # NEW VALID MODEL
+    model="llama-3.1-70b-versatile"
     temperature=0.3
 )
 
