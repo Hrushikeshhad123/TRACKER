@@ -1,264 +1,270 @@
 import streamlit as st
 import time
 import re
+from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime
+import base64
+
 from agent import run_habit_agent
 from tools import detect_timer_command, parse_timer_command
-from memory import clear_user_memory
+from memory import clear_user_memory, is_plot_request
 
-
-# ---------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------
-st.set_page_config(page_title="Habit Tracker Assistant", layout="centered")
-
-
-# ---------------------------------------------------------
-# CSS STYLING (Pastel Blue + Mint Theme)
-# ---------------------------------------------------------
-st.markdown("""
-<style>
-
-body, html, .stApp {
-    background-color: #F9FAFC;
-    font-family: 'Inter', sans-serif;
-    color: #2D2D2D;
-}
-
-.container {
-    max-width: 850px;
-    margin: auto;
-}
-
-/* Header */
-.header-logo {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-}
-
-.main-title {
-    font-size: 36px;
-    font-weight: 700;
-    background: linear-gradient(90deg, #A9C9FF, #7AE1C3);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* Chat Container */
-.chat-container {
-    max-height: 480px;
-    overflow-y: auto;
-    padding: 18px;
-    border-radius: 16px;
-    background-color: white;
-    box-shadow: 0px 4px 12px rgba(0,0,0,0.06);
-    margin-bottom: 20px;
-}
-
-/* Chat Bubbles */
-.chat-bubble {
-    padding: 14px 16px;
-    border-radius: 14px;
-    margin-bottom: 14px;
-    font-size: 15px;
-    line-height: 1.5;
-}
-
-.user-msg {
-    background-color: #DCEBFF;
-    margin-left: 80px;
-    text-align: right;
-}
-
-.assistant-msg {
-    background-color: #E5FFF7;
-    margin-right: 80px;
-    text-align: left;
-}
-
-/* Input Box */
-input[type="text"] {
-    border-radius: 10px !important;
-}
-
-/* Data Cards */
-.data-card {
-    background-color: #FFFFFF;
-    padding: 14px;
-    border-radius: 12px;
-    box-shadow: 0px 4px 12px rgba(0,0,0,0.06);
-    margin-bottom: 16px;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-
-# ---------------------------------------------------------
-# SESSION STATE
-# ---------------------------------------------------------
+# ---------- Session Initialization ----------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-
 if "gym_data" not in st.session_state:
     st.session_state.gym_data = []
+if "input_area" not in st.session_state:
+    if "input_area" not in st.session_state:
+        st.session_state.input_area = ""
 
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
 
 
-# ---------------------------------------------------------
-# LOGIN
-# ---------------------------------------------------------
+# ---------- Authentication ----------
 def login():
     st.markdown("## 🔐 Login Required")
-
     with st.form("login_form", clear_on_submit=False):
-        user = st.text_input("Username")
-        pwd = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
 
-        if submit:
-            if user.lower().strip() == "hrushikesh" and pwd == "tracker123":
-                st.session_state.authenticated = True
+        if submitted:
+            if username.lower().strip() == "hrushikesh" and password == "tracker123":
+                st.session_state["authenticated"] = True
+                st.success("✅ Login successful!")
                 st.rerun()
             else:
-                st.error("❌ Wrong username or password")
+                st.error("❌ Invalid username or password.")
 
-
-if not st.session_state.authenticated:
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     login()
     st.stop()
 
+# ---------- Page Configuration ----------
+st.set_page_config(page_title="🏋️‍♀️ Habit Tracker Assistant", layout="centered")
 
-# ---------------------------------------------------------
-# HEADER
-# ---------------------------------------------------------
+# ---------- Custom Styles ----------
 st.markdown("""
-<div class="container" style="text-align:center; margin-top:20px;">
-    <h1 class="main-title">Habit Tracker Assistant</h1>
+    <style>
+    html, body, .stApp {
+        background-color: #0f1117;
+        color: #e0e0e0;
+        font-family: 'Inter', sans-serif;
+    }
+    .container {
+        max-width: 800px;
+        margin: auto;
+    }
+    .chat-container {
+        max-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 10px;
+        background-color: #1e1e2e;
+        margin-top: 10px;
+    }
+    .chat-bubble {
+        padding: 14px;
+        border-radius: 10px;
+        margin: 10px 0;
+        line-height: 1.6;
+        font-size: 15px;
+    }
+    .user-msg {
+        background-color: #2d2d3a;
+        border-left: 5px solid #64b5f6;
+        text-align: right;
+    }
+    .assistant-msg {
+        background-color: #1f2c2c;
+        border-left: 5px solid #81c784;
+        text-align: left;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ---------- Header with Image ----------
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        encoded = base64.b64encode(img_file.read()).decode()
+    return f"data:image/png;base64,{encoded}"
+
+image_data_url = get_base64_image("unnamed.png")
+
+st.markdown(f"""
+<div class='container' style='text-align: center;'>
+    <img src='{image_data_url}' style='width: 70px; height: 70px; border-radius: 50%; margin-bottom: 10px;' />
+    <h1 style='background: linear-gradient(to right, #43cea2, #185a9d); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>Habit Tracker Assistant</h1>
 </div>
 """, unsafe_allow_html=True)
 
+st.markdown("<hr>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# CLEAR MEMORY BUTTON
-# ---------------------------------------------------------
-if st.button("🧹 Clear All Data & Memory"):
-    st.session_state.chat_history.clear()
-    st.session_state.gym_data.clear()
-    clear_user_memory("default")
-    st.success("Memory cleared!")
+# ---------- Clear Data ----------
+with st.expander("🧹 Clear Data & Memory", expanded=False):
+    if st.button("Clear All", use_container_width=True):
+        clear_user_memory(user_id="default")
+        st.session_state.chat_history.clear()
+        st.session_state.gym_data.clear()
+        st.success("✅ Memory and logs cleared.")
 
-
-# ---------------------------------------------------------
-# GYM DATA EXTRACTOR
-# ---------------------------------------------------------
+# ---------- Gym Data Extractor ----------
 def extract_gym_data(text):
     text = text.lower()
-    if not any(word in text for word in ["gym", "workout", "bench", "deadlift"]):
+    gym_keywords = ["gym", "workout", "bench press", "deadlift"]
+    if not any(word in text for word in gym_keywords):
         return None
-
-    match = re.search(r"(\d+)\s*(minutes|min|hours|hrs|hr)", text)
+    match = re.search(r"(\d+)\s*(minutes|min|hrs|hours|hr)", text)
     if not match:
         return None
-
-    minutes = int(match.group(1))
+    duration = int(match.group(1))
     now = datetime.now()
-    dt = now
-
-    if "yesterday" in text:
-        dt = now - pd.Timedelta(days=1)
-    elif "day before yesterday" in text:
-        dt = now - pd.Timedelta(days=2)
-
-    return {"DateTime": dt, "Duration": minutes}
-
-
-# ---------------------------------------------------------
-# CHAT INPUT
-# ---------------------------------------------------------
-user_input = st.text_input("Type your message...")
-
-
-if user_input:
-    st.session_state.chat_history.append(("user", user_input))
-
-    # Timer
-    if detect_timer_command(user_input):
-        duration, task = parse_timer_command(user_input)
-        placeholder = st.empty()
-
-        for i in range(duration, 0, -1):
-            placeholder.markdown(f"### ⏳ {i}s left for **{task}**")
-            time.sleep(1)
-
-        placeholder.markdown(f"### ✅ Timer complete for **{task}**")
-        st.session_state.chat_history.append(("assistant", f"Timer completed for: {task}"))
-
-    # Gym logging
-    elif (gd := extract_gym_data(user_input)):
-        st.session_state.gym_data.append(gd)
-        st.session_state.chat_history.append(
-            ("assistant", f"💪 Logged your **{gd['Duration']} min** gym session.")
-        )
-
-    # Chatbot
+    datetime_obj = now
+    if "day before yesterday" in text:
+        datetime_obj = now - pd.Timedelta(days=2)
+    elif "yesterday" in text:
+        datetime_obj = now - pd.Timedelta(days=1)
+    elif "today" in text:
+        datetime_obj = now
     else:
-        bot_reply = run_habit_agent(user_input, st.session_state.chat_history)
-        st.session_state.chat_history.append(("assistant", bot_reply))
+        date_match = re.search(r"\b(\d{1,2})(st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*", text)
+        if not date_match:
+            date_match = re.search(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(st|nd|rd|th)?", text)
+        try:
+            if date_match:
+                if date_match.lastindex == 3:
+                    day = int(date_match.group(1))
+                    month = date_match.group(3)
+                else:
+                    month = date_match.group(1)
+                    day = int(date_match.group(2))
+                month_num = datetime.strptime(month[:3], "%b").month
+                year = now.year
+                datetime_obj = datetime(year, month_num, day, now.hour, now.minute, now.second)
+        except Exception:
+            pass
+    return {"DateTime": datetime_obj, "Duration": duration}
 
-    st.rerun()
+# ---------- Chat Input (Enter to Send) ----------
+st.markdown("### 💬 Talk to Your Habit Assistant")
 
+# Handle input
 
-# ---------------------------------------------------------
-# CHAT DISPLAY
-# ---------------------------------------------------------
+def handle_input():
+    user_input = st.session_state.input_area.strip()
+    if not user_input:
+        return
+    st.session_state.chat_history.append(("user", user_input))
+    st.session_state.input_area = ""
+
+    if detect_timer_command(user_input):
+        parsed = parse_timer_command(user_input)
+        if parsed:
+            duration, task = parsed
+            st.success(f"⏱️ Starting a {duration}-second timer for: {task}")
+            placeholder = st.empty()
+            for i in range(duration, 0, -1):
+                mins, secs = divmod(i, 60)
+                placeholder.markdown(f"### ⏳ {mins:02d}:{secs:02d} remaining for **{task}**")
+                time.sleep(1)
+            placeholder.markdown(f"### ✅ Timer complete for: **{task}**")
+            st.session_state.chat_history.append(("assistant", f"Timer complete for: {task}"))
+
+    elif (gym_data := extract_gym_data(user_input)):
+        st.session_state.gym_data.append(gym_data)
+        formatted_time = gym_data['DateTime'].strftime('%B %d, %Y %I:%M %p')
+        msg = f"💪 Logged your gym session: {gym_data['Duration']} minutes on {formatted_time}"
+        st.success(msg)
+        st.session_state.chat_history.append(("assistant", msg))
+
+    elif is_plot_request(user_input):
+        if st.session_state.gym_data:
+            df = pd.DataFrame(st.session_state.gym_data).sort_values("DateTime")
+            st.markdown("### 📊 Gym Progress Chart")
+            fig, ax = plt.subplots()
+            fig.patch.set_facecolor('#121212')
+            ax.set_facecolor('#1e1e1e')
+            ax.plot(df["DateTime"], df["Duration"], marker='o', linestyle='-', color='#81c784')
+            ax.set_xlabel("Date & Time", color='white')
+            ax.set_ylabel("Duration (minutes)", color='white')
+            ax.set_title("Gym Duration Trend", color='white')
+            ax.tick_params(axis='x', colors='white', rotation=45)
+            ax.tick_params(axis='y', colors='white')
+            ax.grid(True, color='#444')
+            st.pyplot(fig)
+            st.session_state.chat_history.append(("assistant", "📈 Here's your gym session chart!"))
+        else:
+            st.warning("⚠️ No gym data available to plot.")
+            st.session_state.chat_history.append(("assistant", "No gym data available to plot."))
+
+    else:
+        reply = run_habit_agent(user_input, st.session_state.chat_history)
+        if reply == "__PLOT_GYM_GRAPH__":
+            if st.session_state.gym_data:
+                df = pd.DataFrame(st.session_state.gym_data).sort_values("DateTime")
+                st.markdown("### 📈 Gym Progress Chart")
+                fig, ax = plt.subplots()
+                fig.patch.set_facecolor('#121212')
+                ax.set_facecolor('#1e1e1e')
+                ax.plot(df["DateTime"], df["Duration"], marker='o', linestyle='-', color='#81c784')
+                ax.set_xlabel("Date & Time", color='white')
+                ax.set_ylabel("Duration (minutes)", color='white')
+                ax.set_title("Gym Duration Trend", color='white')
+                ax.tick_params(axis='x', colors='white', rotation=45)
+                ax.tick_params(axis='y', colors='white')
+                ax.grid(True, color='#444')
+                st.pyplot(fig)
+                st.session_state.chat_history.append(("assistant", "📈 Here's your gym session chart!"))
+            else:
+                st.warning("⚠️ No gym data found to plot.")
+                st.session_state.chat_history.append(("assistant", "No gym data found to plot."))
+        else:
+            st.session_state.chat_history.append(("assistant", reply))
+
+st.text_input(
+    label="Message",
+    key="input_area",
+    on_change=handle_input,
+    placeholder="Type a message and press Enter...",
+    label_visibility="collapsed"
+)
+
+# ---------- Chat History ----------
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown("### 🧾 Chat History")
 st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
 for role, msg in st.session_state.chat_history:
-    css = "user-msg" if role == "user" else "assistant-msg"
-    st.markdown(
-        f'<div class="chat-bubble {css}"><strong>{role.capitalize()}:</strong> {msg}</div>',
-        unsafe_allow_html=True,
-    )
+    css_class = "user-msg" if role == "user" else "assistant-msg"
+    st.markdown(f"""
+        <div class="chat-bubble {css_class}">
+            <strong>{role.capitalize()}:</strong> {msg}
+        </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ---------------------------------------------------------
-# GYM DATA DISPLAY
-# ---------------------------------------------------------
+# ---------- Show Logged Gym Sessions ----------
 if st.session_state.gym_data:
+    st.markdown("---")
     st.markdown("### 🗓️ Logged Gym Sessions")
     df = pd.DataFrame(st.session_state.gym_data)
-    df["DateTime"] = df["DateTime"].dt.strftime("%Y-%m-%d %I:%M %p")
-    st.dataframe(df, use_container_width=True)
+    df["DateTime"] = df["DateTime"].apply(lambda dt: dt.strftime('%Y-%m-%d %I:%M %p'))
+    st.dataframe(df.style.set_properties(**{
+        'background-color': '#1e1e2e',
+        'color': 'white',
+        'border-color': 'white'
+    }), use_container_width=True)
+def plot_food_graph(food_df):
 
+    # Example: plot total calories per day
+    daily_calories = food_df.groupby("date")["calories"].sum()
 
-# ---------------------------------------------------------
-# PLOT BUTTON
-# ---------------------------------------------------------
-if st.button("📈 Show Gym Progress"):
-    if st.session_state.gym_data:
-        df = pd.DataFrame(st.session_state.gym_data).sort_values("DateTime")
-
-        st.markdown("### 📊 Gym Progress")
-
-        fig, ax = plt.subplots(figsize=(8, 3))
-        fig.patch.set_facecolor("#F9FAFC")
-        ax.set_facecolor("white")
-
-        ax.plot(df["DateTime"], df["Duration"], marker="o", color="#7AE1C3")
-        ax.set_title("Workout Duration Over Time", color="#2D2D2D")
-        ax.set_ylabel("Minutes")
-        ax.grid(True, alpha=0.3)
-
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-    else:
-        st.warning("No gym data available.")
+    plt.figure(figsize=(10, 4))
+    daily_calories.plot(kind="bar", color="orange")
+    plt.title("Daily Calorie Intake")
+    plt.xlabel("Date")
+    plt.ylabel("Calories")
+    st.pyplot(plt)
