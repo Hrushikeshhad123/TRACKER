@@ -30,7 +30,7 @@ def login():
         submitted = st.form_submit_button("Login")
 
         if submitted:
-            if username.lower().strip() == "hrushikesh mama" and password == "mamamami":
+            if username.lower().strip() == "hrushikesh" and password == "tracker123":
                 st.session_state["authenticated"] = True
                 st.success("✅ Login successful!")
                 st.rerun()
