@@ -1,148 +1,264 @@
 import streamlit as st
 import time
 import re
-from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
-import base64
+from datetime import datetime
+from agent import run_habit_agent
+from tools import detect_timer_command, parse_timer_command
+from memory import clear_user_memory
 
-# -------------------- PAGE SETTINGS --------------------
-st.set_page_config(
-    page_title="Habit Tracker Assistant",
-    page_icon="💬",
-    layout="centered"
-)
 
-# -------------------- GLOBAL STYLES --------------------
+# ---------------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------------
+st.set_page_config(page_title="Habit Tracker Assistant", layout="centered")
+
+
+# ---------------------------------------------------------
+# CSS STYLING (Pastel Blue + Mint Theme)
+# ---------------------------------------------------------
 st.markdown("""
 <style>
 
-body, .stApp {
-    background-color: #FAFAFA !important;
+body, html, .stApp {
+    background-color: #F9FAFC;
     font-family: 'Inter', sans-serif;
+    color: #2D2D2D;
 }
 
-.section-header {
+.container {
+    max-width: 850px;
+    margin: auto;
+}
+
+/* Header */
+.header-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+}
+
+.main-title {
+    font-size: 36px;
     font-weight: 700;
-    font-size: 26px;
-    margin-bottom: 6px;
+    background: linear-gradient(90deg, #A9C9FF, #7AE1C3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-.card {
-    background: #FFFFFF;
+/* Chat Container */
+.chat-container {
+    max-height: 480px;
+    overflow-y: auto;
     padding: 18px;
-    border-radius: 18px;
-    box-shadow: 0 3px 15px rgba(0,0,0,0.07);
+    border-radius: 16px;
+    background-color: white;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.06);
     margin-bottom: 20px;
 }
 
-.chat-bubble-user {
-    background: #4B4B4B;
-    color: white;
-    padding: 12px 16px;
+/* Chat Bubbles */
+.chat-bubble {
+    padding: 14px 16px;
     border-radius: 14px;
-    margin: 8px 0;
-    width: 75%;
-    float: right;
+    margin-bottom: 14px;
+    font-size: 15px;
+    line-height: 1.5;
 }
 
-.chat-bubble-assistant {
-    background: #EAF1FF;
-    color: #333;
-    padding: 12px 16px;
-    border-radius: 14px;
-    margin: 8px 0;
-    width: 75%;
-    float: left;
+.user-msg {
+    background-color: #DCEBFF;
+    margin-left: 80px;
+    text-align: right;
 }
 
-.nav-bar {
-    display: flex;
-    justify-content: space-around;
-    padding: 12px 0;
-    background: #2F2F2F;
+.assistant-msg {
+    background-color: #E5FFF7;
+    margin-right: 80px;
+    text-align: left;
+}
+
+/* Input Box */
+input[type="text"] {
+    border-radius: 10px !important;
+}
+
+/* Data Cards */
+.data-card {
+    background-color: #FFFFFF;
+    padding: 14px;
     border-radius: 12px;
-    margin-bottom: 18px;
-}
-
-.nav-item {
-    color: white !important;
-    padding: 10px 16px;
-    font-weight: 600;
-    border-radius: 10px;
-}
-
-.nav-item-selected {
-    background: #6A4CE3;
-    color: white !important;
+    box-shadow: 0px 4px 12px rgba(0,0,0,0.06);
+    margin-bottom: 16px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 
-# -------------------- STATE --------------------
-if "tab" not in st.session_state:
-    st.session_state.tab = "Chat"
-
+# ---------------------------------------------------------
+# SESSION STATE
+# ---------------------------------------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+if "gym_data" not in st.session_state:
+    st.session_state.gym_data = []
 
-# -------------------- NAVIGATION --------------------
-st.markdown("""
-<div class="nav-bar">
-    <a class="nav-item {chat}" href="?tab=Chat">Chat</a>
-    <a class="nav-item {gym}" href="?tab=Gym">Gym Logs</a>
-    <a class="nav-item {food}" href="?tab=Food">Food</a>
-</div>
-""".format(
-    chat="nav-item-selected" if st.session_state.tab == "Chat" else "",
-    gym="nav-item-selected" if st.session_state.tab == "Gym" else "",
-    food="nav-item-selected" if st.session_state.tab == "Food" else "",
-), unsafe_allow_html=True)
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
 
-# -------------------- CHAT TAB --------------------
-if st.session_state.tab == "Chat":
-    st.markdown("<div class='section-header'>💬 Chat Assistant</div>", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# LOGIN
+# ---------------------------------------------------------
+def login():
+    st.markdown("## 🔐 Login Required")
 
-    chat_box = st.container()
+    with st.form("login_form", clear_on_submit=False):
+        user = st.text_input("Username")
+        pwd = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
 
-    with chat_box:
-        for role, message in st.session_state.chat_history:
-            if role == "user":
-                st.markdown(f"<div class='chat-bubble-user'>{message}</div><br>", unsafe_allow_html=True)
+        if submit:
+            if user.lower().strip() == "hrushikesh" and pwd == "tracker123":
+                st.session_state.authenticated = True
+                st.rerun()
             else:
-                st.markdown(f"<div class='chat-bubble-assistant'>{message}</div><br>", unsafe_allow_html=True)
-
-    user_input = st.text_input("Message")
-
-    if user_input:
-        st.session_state.chat_history.append(("user", user_input))
-        st.session_state.chat_history.append(("assistant", "This is a placeholder reply."))
-        st.rerun()
+                st.error("❌ Wrong username or password")
 
 
-# -------------------- GYM TAB --------------------
-elif st.session_state.tab == "Gym":
-    st.markdown("<div class='section-header'>🏋️ Gym Log</div>", unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class='card'>
-        <strong>Log your workouts here.</strong><br>
-        Light background. Clean aesthetic.  
-    </div>
-    """, unsafe_allow_html=True)
+if not st.session_state.authenticated:
+    login()
+    st.stop()
 
 
-# -------------------- FOOD TAB --------------------
-elif st.session_state.tab == "Food":
-    st.markdown("<div class='section-header'>🍽️ Food Tracking</div>", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# HEADER
+# ---------------------------------------------------------
+st.markdown("""
+<div class="container" style="text-align:center; margin-top:20px;">
+    <h1 class="main-title">Habit Tracker Assistant</h1>
+</div>
+""", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class='card'>
-        <strong>Track your meals and calories.</strong><br>
-        Light color cards. Soft shadows.
-    </div>
-    """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# CLEAR MEMORY BUTTON
+# ---------------------------------------------------------
+if st.button("🧹 Clear All Data & Memory"):
+    st.session_state.chat_history.clear()
+    st.session_state.gym_data.clear()
+    clear_user_memory("default")
+    st.success("Memory cleared!")
+
+
+# ---------------------------------------------------------
+# GYM DATA EXTRACTOR
+# ---------------------------------------------------------
+def extract_gym_data(text):
+    text = text.lower()
+    if not any(word in text for word in ["gym", "workout", "bench", "deadlift"]):
+        return None
+
+    match = re.search(r"(\d+)\s*(minutes|min|hours|hrs|hr)", text)
+    if not match:
+        return None
+
+    minutes = int(match.group(1))
+    now = datetime.now()
+    dt = now
+
+    if "yesterday" in text:
+        dt = now - pd.Timedelta(days=1)
+    elif "day before yesterday" in text:
+        dt = now - pd.Timedelta(days=2)
+
+    return {"DateTime": dt, "Duration": minutes}
+
+
+# ---------------------------------------------------------
+# CHAT INPUT
+# ---------------------------------------------------------
+user_input = st.text_input("Type your message...")
+
+
+if user_input:
+    st.session_state.chat_history.append(("user", user_input))
+
+    # Timer
+    if detect_timer_command(user_input):
+        duration, task = parse_timer_command(user_input)
+        placeholder = st.empty()
+
+        for i in range(duration, 0, -1):
+            placeholder.markdown(f"### ⏳ {i}s left for **{task}**")
+            time.sleep(1)
+
+        placeholder.markdown(f"### ✅ Timer complete for **{task}**")
+        st.session_state.chat_history.append(("assistant", f"Timer completed for: {task}"))
+
+    # Gym logging
+    elif (gd := extract_gym_data(user_input)):
+        st.session_state.gym_data.append(gd)
+        st.session_state.chat_history.append(
+            ("assistant", f"💪 Logged your **{gd['Duration']} min** gym session.")
+        )
+
+    # Chatbot
+    else:
+        bot_reply = run_habit_agent(user_input, st.session_state.chat_history)
+        st.session_state.chat_history.append(("assistant", bot_reply))
+
+    st.rerun()
+
+
+# ---------------------------------------------------------
+# CHAT DISPLAY
+# ---------------------------------------------------------
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
+for role, msg in st.session_state.chat_history:
+    css = "user-msg" if role == "user" else "assistant-msg"
+    st.markdown(
+        f'<div class="chat-bubble {css}"><strong>{role.capitalize()}:</strong> {msg}</div>',
+        unsafe_allow_html=True,
+    )
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------
+# GYM DATA DISPLAY
+# ---------------------------------------------------------
+if st.session_state.gym_data:
+    st.markdown("### 🗓️ Logged Gym Sessions")
+    df = pd.DataFrame(st.session_state.gym_data)
+    df["DateTime"] = df["DateTime"].dt.strftime("%Y-%m-%d %I:%M %p")
+    st.dataframe(df, use_container_width=True)
+
+
+# ---------------------------------------------------------
+# PLOT BUTTON
+# ---------------------------------------------------------
+if st.button("📈 Show Gym Progress"):
+    if st.session_state.gym_data:
+        df = pd.DataFrame(st.session_state.gym_data).sort_values("DateTime")
+
+        st.markdown("### 📊 Gym Progress")
+
+        fig, ax = plt.subplots(figsize=(8, 3))
+        fig.patch.set_facecolor("#F9FAFC")
+        ax.set_facecolor("white")
+
+        ax.plot(df["DateTime"], df["Duration"], marker="o", color="#7AE1C3")
+        ax.set_title("Workout Duration Over Time", color="#2D2D2D")
+        ax.set_ylabel("Minutes")
+        ax.grid(True, alpha=0.3)
+
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+
+    else:
+        st.warning("No gym data available.")
