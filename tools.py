@@ -18,7 +18,7 @@ GROQ_API_KEY = "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"
 # -------------------------------------------------------
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
-    model="llama-3.3-70b-versatile",
+    model="llama-3.1-405b-reasoning",
     temperature=0.1
 )
 
