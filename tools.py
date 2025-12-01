@@ -5,10 +5,13 @@ from collections import Counter
 import pandas as pd
 import dateparser
 import requests
+GROQ_API_KEY = "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"
 
-# 🧠 LLM utility (Groq-based)
-GROQ_API_KEY = "your_groq_api_key_here"
-GROQ_MODEL = "llama3-8b-8192"
+llm = ChatGroq(
+    groq_api_key=GROQ_API_KEY,
+    model="llama3-70b-specdec",
+    temperature=0.3
+)
 
 def query_llm(user_input, system_instruction):
     url = "https://api.groq.com/openai/v1/chat/completions"
