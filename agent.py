@@ -26,7 +26,7 @@ from tools import (
 from memory import save_message, get_contextual_memory
 
 load_dotenv()
-GROQ_API_KEY = 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
+GROQ_API_KEY = "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"
 
 # LLM
 llm = ChatGroq(
