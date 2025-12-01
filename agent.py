@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
-from tools import summarize_food_logs  # Add this import at the top
-from memory import save_message, get_contextual_memory
+
+# Import tools
 from tools import (
+    summarize_food_logs,
     detect_gym_trigger,
     detect_food_trigger,
     log_gym_session,
@@ -21,52 +22,56 @@ from tools import (
     handle_recipe_query
 )
 
+# Memory
+from memory import save_message, get_contextual_memory
+
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+# LLM
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
     model_name="llama3-70b-8192",
     temperature=0.3
 )
 
-# Smart, contextual assistant behavior
+# Prompt
 prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are a Smart Habit Tracker Assistant.
+    ("system", """
+You are a Smart Habit Tracker Assistant.
 
-Your role is to help users track and reflect on their gym workouts and food habits. Offer personalized feedback, motivation, insights, and statistics based on their logs.
+Your role is to help users track and reflect on their gym workouts and food habits.
 
 ### Behavior Guidelines
-- Always respond in a friendly, supportive tone.
-- Summarize gym and food data if provided. Highlight:
-  - Frequency, consistency, intensity (for gym)
-  - Balance, diversity, excess/deficiency (for food)
-- Suggest improvements or healthy alternatives where necessary.
-- Generate visualizations when asked (e.g., calories/week, protein trends).
-- Warn about imbalances (e.g., too many carbs, no protein).
-- Use memory context to personalize insights (e.g., “This week was more consistent than last week”).
-- Offer code examples when asked for feature-building help (e.g., “plot my weekly protein intake”).
-
-### Output Expectations
-- Use bullet points or markdown tables for summaries when helpful.
-- Keep recommendations realistic and actionable.
-- When unsure, ask clarifying questions.
-
+- Friendly, supportive tone.
+- Summaries, insights, warnings.
+- Use memory context.
+- Ask clarifying questions when needed.
 """),
     MessagesPlaceholder(variable_name="chat_history"),
     ("system", "Relevant past memory:\n{context}"),
     ("human", "{input}")
 ])
+
 chain = prompt | llm
 
 
+# -------------------------------------------------------------------
+# MAIN AGENT FUNCTION (fixed version)
+# -------------------------------------------------------------------
+
 def run_habit_agent(user_input, chat_history, user_id="default"):
-    # Save incoming message
+
+    # ---------------------------------------------------------
+    # 1. Save the incoming user message
+    # ---------------------------------------------------------
     save_message(user_id, "user", user_input)
 
     tool_response = None
 
-    # Run tool-based logic if triggers match
+    # ---------------------------------------------------------
+    # 2. Tool triggers
+    # ---------------------------------------------------------
     if detect_gym_trigger(user_input):
         tool_response = log_gym_session(user_input, user_id)
         save_message(user_id, "assistant", tool_response)
@@ -91,41 +96,51 @@ def run_habit_agent(user_input, chat_history, user_id="default"):
         else:
             tool_response = "❌ Couldn't parse timer info."
 
-    # If not a direct tool match, try recipe handler
-    elif not tool_response:
-        response = handle_recipe_query(user_input)
-        if response and "🍽️" in response or "🔥" in response:
-            tool_response = response
+    else:
+        # recipe handler
+        recipe_reply = handle_recipe_query(user_input)
+        if recipe_reply and ("🍽️" in recipe_reply or "🔥" in recipe_reply):
+            tool_response = recipe_reply
 
-    # Prepare memory + conversation history
-        # Prepare memory + conversation history
-    memory_context = get_contextual_memory(user_id)
+    # ---------------------------------------------------------
+    # 3. Load contextual memory (convert to string)
+    # ---------------------------------------------------------
+    raw_memory = get_contextual_memory(user_id)
+    memory_context = "\n".join(m["content"] for m in raw_memory if "content" in m)
 
-    memory_as_messages = []
-    for line in [m["content"] for m in memory_context if "content" in m]:
-        if line.startswith("user:"):
-            memory_as_messages.append(HumanMessage(content=line[5:].strip()))
-        elif line.startswith("assistant:"):
-            memory_as_messages.append(AIMessage(content=line[9:].strip()))
+    # ---------------------------------------------------------
+    # 4. Convert Streamlit chat history → LangChain Messages
+    # ---------------------------------------------------------
+    lc_history = []
+    for role, msg in chat_history:
+        if role == "user":
+            lc_history.append(HumanMessage(content=msg))
+        else:
+            lc_history.append(AIMessage(content=msg))
 
-    full_history = memory_as_messages + [HumanMessage(content=user_input)]
-
-    # Auto-analyze if user query contains food analysis keywords
+    # ---------------------------------------------------------
+    # 5. Add triggered food summary
+    # ---------------------------------------------------------
     if "analyze food" in user_input.lower() or "diet analysis" in user_input.lower():
-        food_summary = summarize_food_logs()
-        user_input += f"\n\nHere is the food data summary for your analysis:\n{food_summary}"
+        summary = summarize_food_logs()
+        user_input += f"\n\nHere is your food data:\n{summary}"
 
-
-    # Run main LLM reasoning
+    # ---------------------------------------------------------
+    # 6. Call LLM (safe invocation)
+    # ---------------------------------------------------------
     response = chain.invoke({
         "input": user_input,
-        "chat_history": full_history,
+        "chat_history": lc_history,
         "context": memory_context
     })
 
-    # Save LLM output
+    # Save assistant output
     save_message(user_id, "assistant", response.content)
 
+    # ---------------------------------------------------------
+    # 7. Return combined tool + LLM message if needed
+    # ---------------------------------------------------------
     if tool_response:
         return f"{tool_response}\n\nAssistant: {response.content}"
+
     return response.content
